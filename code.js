@@ -1,217 +1,178 @@
 
-figma.showUI(__html__, { width: 400, height: 500, title: "Claude JSON Importer" });
+figma.showUI(__html__, { width: 340, height: 400 });
 
-figma.ui.onmessage = msg => {
+figma.ui.onmessage = async (msg) => {
   if (msg.type === 'create-design') {
-    const designData = msg.data;
-    createDesign(designData);
-  }
-};
-
-/**
- * @param {string} hex 
- * @returns {object} 
- */
-function hexToRgb(hex) {
-    const cleanHex = hex.startsWith('#') ? hex.slice(1) : hex;
-    const bigint = parseInt(cleanHex, 16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return { r: r / 255, g: g / 255, b: b / 255 };
-}
-
-/**
- * @param {SceneNode} node
- * @param {string} cssColor 
- */
-function applyCssFill(node, cssColor) {
-    if (node.fills && cssColor && cssColor.startsWith('#')) {
-        const rgb = hexToRgb(cssColor);
-        node.fills = [{ type: 'SOLID', color: rgb }];
-    }
-}
-
-/**
- * @param {SceneNode} node 
- * @param {object} styles 
- */
-function applyCssStyles(node, styles) {
-    if (!styles) return;
-
-    if (styles.backgroundColor) {
-        applyCssFill(node, styles.backgroundColor);
-    }
-    if (styles.color && node.type === 'TEXT') {
-        const rgb = hexToRgb(styles.color);
-        node.fills = [{ type: 'SOLID', color: rgb }];
+    let data = msg.data;
+    if (data.success && data.design && data.design.components) {
+      data = {
+        type: 'frame',
+        name: 'AI Generated Page',
+        styles: { layout: 'vertical' },
+        children: data.design.components || data.elements
+      };
     }
 
-    const parsePx = (val) => parseFloat(String(val).replace('px', ''));
-
-    if (styles.width && 'resize' in node) {
-        const width = parsePx(styles.width);
-        if (!isNaN(width)) node.resize(width, node.height);
-    }
-    if (styles.height && 'resize' in node) {
-        const height = parsePx(styles.height);
-        if (!isNaN(height)) node.resize(node.width, height);
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16) / 255,
+        g: parseInt(result[2], 16) / 255,
+        b: parseInt(result[3], 16) / 255
+      } : { r: 0, g: 0, b: 0 };
     }
 
-    if (styles.display === 'flex' && 'layoutMode' in node) {
-        node.layoutMode = styles.flexDirection === 'column' ? 'VERTICAL' : 'HORIZONTAL';
-        
-        if (styles.gap) {
-            const spacing = parsePx(styles.gap);
-            if (!isNaN(spacing)) node.itemSpacing = spacing;
-        }
-
-        if (styles.justifyContent === 'space-between') {
-            node.primaryAxisAlignItems = 'SPACE_BETWEEN';
-        } else if (styles.justifyContent === 'center') {
-            node.primaryAxisAlignItems = 'CENTER';
-        }
-        
-        if (styles.alignItems === 'center') {
-            node.counterAxisAlignItems = 'CENTER';
-        }
+    function parseUnit(value) {
+      if (typeof value === 'string') return parseFloat(value) || 0;
+      return value || 0;
     }
 
-    if (styles.borderRadius && 'cornerRadius' in node) {
-        const radius = parsePx(styles.borderRadius);
-        if (!isNaN(radius)) node.cornerRadius = radius;
+    async function loadFont(fontFamily = 'Arial', fontWeight = 'Regular') {
+      try {
+        await figma.loadFontAsync({ family: fontFamily, style: fontWeight });
+        return { family: fontFamily, style: fontWeight };
+      } catch (e) {
+        console.log(`Warning: Font '${fontFamily} - ${fontWeight}' not found. Falling back to Arial.`);
+        await figma.loadFontAsync({ family: 'Arial', style: 'Regular' });
+        return { family: 'Arial', style: 'Regular' };
+      }
     }
 
-    if (styles.boxShadow && 'effects' in node) {
+    async function createNode(obj, isTopLevel = false) {
+      if (!obj || !obj.type) return null;
+
+      let node;
+      const styles = obj.styles || {};
       
-    }
-    
- 
-}
+      let nodeType = 'frame';
+      const originalType = obj.type.toLowerCase();
+      const textTypes = ['text', 'h1', 'h2', 'h3', 'h4', 'p', 'span', 'a', 'li', 'logo', 'price', 'tagline'];
+      if (textTypes.includes(originalType) || (obj.content && !obj.children && !obj.elements)) {
+        nodeType = 'text';
+      } else if (originalType === 'button') {
+        nodeType = 'button';
+      }
 
-/**
- * @param {SceneNode} node 
- * @param {object} component 
- */
-function applyCommonProperties(node, component) {
-    node.name = component.name || component.type;
-    if (component.x !== undefined) node.x = component.x;
-    if (component.y !== undefined) node.y = component.y;
-    
-    applyCssStyles(node, component.styles);
-}
-
-/**
- * @param {TextNode} node 
- * @param {object} component 
- */
-async function applyTextProperties(node, component) {
-    const textContent = component.content || component.text;
-    if (textContent) {
-        const fontFamily = (component.styles && component.styles.fontFamily) ? component.styles.fontFamily : "Inter";
-        const fontWeight = (component.styles && component.styles.fontWeight) ? String(component.styles.fontWeight) : "Regular";
+      if (nodeType === 'text') {
+        node = figma.createText();
+        let weight = (styles.fontWeight >= 600 || styles.fontWeight === 'bold') ? 'Bold' : 'Regular';
+        node.fontName = await loadFont(styles.fontFamily, weight);
         
-        try {
-            await figma.loadFontAsync({ family: fontFamily, style: fontWeight });
-        } catch (e) {
-            console.warn(`error: ${fontFamily}, ${fontWeight}`);
-            await figma.loadFontAsync({ family: "Inter", style: "Regular" }); 
+        node.characters = obj.content || "";
+        if (styles.fontSize) node.fontSize = parseUnit(styles.fontSize);
+        if (styles.color) node.fills = [{ type: 'SOLID', color: hexToRgb(styles.color) }];
+        if (styles.textAlign) node.textAlignHorizontal = styles.textAlign.toUpperCase();
+
+      } else { 
+        node = figma.createFrame();
+        node.fills = [];
+
+        if (nodeType === 'button') {
+            if (styles.backgroundColor) node.fills = [{ type: 'SOLID', color: hexToRgb(styles.backgroundColor) }];
+            if (styles.borderRadius) node.cornerRadius = parseUnit(styles.borderRadius);
+            
+            if (styles.padding) {
+                const paddingStr = String(styles.padding);
+                const parts = paddingStr.split(' ').map(p => parseUnit(p));
+                if (parts.length === 1) {
+                    const p = parts[0];
+                    node.paddingTop = p; node.paddingBottom = p; node.paddingLeft = p; node.paddingRight = p;
+                } else if (parts.length >= 2) {
+                    node.paddingTop = node.paddingBottom = parts[0];
+                    node.paddingLeft = node.paddingRight = parts[1];
+                }
+            }
+
+            if (obj.content) {
+                const textNode = figma.createText();
+                let weight = (styles.fontWeight >= 600 || styles.fontWeight === 'bold') ? 'Bold' : 'Regular';
+                textNode.fontName = await loadFont(styles.fontFamily, weight);
+                textNode.characters = obj.content;
+                if (styles.color) textNode.fills = [{ type: 'SOLID', color: hexToRgb(styles.color) }];
+                if (styles.fontSize) textNode.fontSize = parseUnit(styles.fontSize);
+                node.appendChild(textNode);
+            }
+            
+            node.layoutMode = 'HORIZONTAL';
+            node.primaryAxisSizingMode = 'AUTO';
+            node.counterAxisSizingMode = 'AUTO';
+        } else { 
+            if (styles.background || styles.backgroundColor) {
+              const bg = styles.background || styles.backgroundColor;
+              if (bg.includes("gradient")) {
+                const colors = bg.match(/#[0-9a-fA-F]{6}/g);
+                if (colors && colors.length >= 2) {
+                  const color1 = hexToRgb(colors[0]);
+                  const color2 = hexToRgb(colors[1]);
+                  node.fills = [{
+                    type: 'GRADIENT_LINEAR',
+                    gradientTransform: [[0.5, 0, 0], [0.5, 1, 0]],
+                    gradientStops: [
+                      { color: { r: color1.r, g: color1.g, b: color1.b, a: 1 }, position: 0 },
+                      { color: { r: color2.r, g: color2.g, b: color2.b, a: 1 }, position: 1 }
+                    ]
+                  }];
+                }
+              } else {
+                node.fills = [{ type: 'SOLID', color: hexToRgb(bg) }];
+              }
+            }
+            if (styles.borderRadius) node.cornerRadius = parseUnit(styles.borderRadius);
         }
-        
-        node.characters = textContent;
-        
-        if (component.styles && component.styles.fontSize) node.fontSize = parseFloat(component.styles.fontSize.fontSize.replace('px', ''));
-        if (component.styles && component.styles.color) {
-            const rgb = hexToRgb(component.styles.color);
-            node.fills = [{ type: 'SOLID', color: rgb }];
+
+        if (styles.boxShadow) {
+            node.effects = [{ type: 'DROP_SHADOW', color: { r: 0, g: 0, b: 0, a: 0.1 }, offset: { x: 0, y: 4 }, radius: 12, visible: true, blendMode: 'NORMAL' }];
         }
-    }
-}
 
+        if (isTopLevel) {
+            node.primaryAxisSizingMode = 'AUTO';
+            node.counterAxisSizingMode = 'AUTO';
+        } else if (nodeType !== 'button') {
+            if (styles.width) node.resize(parseUnit(styles.width), node.height);
+            if (styles.height) node.resize(node.width, parseUnit(styles.height));
+            if (!styles.width) node.layoutAlign = 'STRETCH';
+            if (!styles.height) node.primaryAxisSizingMode = 'AUTO';
+        }
 
-/**
- * @param {object} component 
- * @returns {SceneNode | null}
- */
-async function createNode(component) {
-    let node = null;
-
-    switch (component.type) {
-        case 'FRAME':
-            node = figma.createFrame();
-            applyCommonProperties(node, component);
-            break;
-        case 'RECTANGLE':
-            node = figma.createRectangle();
-            applyCommonProperties(node, component);
-            break;
-        case 'TEXT':
-        case 'h1':
-        case 'p':
-        case 'a':
-            node = figma.createText();
-            applyCommonProperties(node, component);
-            await applyTextProperties(node, component);
-            break;
-        default:
-            console.warn(`Unsupported component type: ${component.type}`);
-            return null;
-    }
-
-    if (node && component.children && component.children.length > 0) {
-        for (const childComponent of component.children) {
-            const childNode = await createNode(childComponent);
-            if (childNode) {
-                node.appendChild(childNode);
+        if (nodeType !== 'button') {
+            const layout = styles.layout || (styles.display === 'flex' && styles.flexDirection === 'row' ? 'horizontal' : 'vertical');
+            node.layoutMode = (layout === 'horizontal') ? 'HORIZONTAL' : 'VERTICAL';
+            if (styles.alignItems) node.counterAxisAlignItems = { 'center': 'CENTER', 'flex-start': 'MIN', 'end': 'MAX' }[styles.alignItems] || 'MIN';
+            if (styles.justifyContent) node.primaryAxisAlignItems = { 'center': 'CENTER', 'space-between': 'SPACE_BETWEEN' }[styles.justifyContent] || 'MIN';
+            const spacing = parseUnit(styles.spacing || styles.gap);
+            if (spacing > 0) node.itemSpacing = spacing;
+            const padding = parseUnit(styles.padding);
+            if (padding > 0) {
+                node.paddingTop = node.paddingRight = node.paddingBottom = node.paddingLeft = padding;
+            } else {
+                if (styles.paddingTop) node.paddingTop = parseUnit(styles.paddingTop);
+                if (styles.paddingRight) node.paddingRight = parseUnit(styles.paddingRight);
+                if (styles.paddingBottom) node.paddingBottom = parseUnit(styles.paddingBottom);
+                if (styles.paddingLeft) node.paddingLeft = parseUnit(styles.paddingLeft);
             }
         }
-    }
+      }
 
-    return node;
-}
+      if (!node) return null;
+      node.name = obj.name || obj.className || obj.id || originalType;
 
-/**
- * @param {object} designData 
- */
-async function createDesign(designData) {
-    const components = designData.design.components;
-    
-    const mapType = (type) => {
-        if (['header', 'section', 'div', 'nav', 'button'].includes(type)) return 'FRAME';
-        if (['h1', 'p', 'a'].includes(type)) return 'TEXT';
-        return type.toUpperCase();
-    };
-
-    const processedComponents = components.map(comp => {
-        comp.type = mapType(comp.type);
-        if (comp.children) {
-            comp.children = comp.children.map(child => {
-                child.type = mapType(child.type);
-                return child;
-            });
+      const children = obj.children || obj.elements;
+      if (children && Array.isArray(children)) {
+        for (const childObj of children) {
+          const childNode = await createNode(childObj, false);
+          if (childNode) node.appendChild(childNode);
         }
-        return comp;
-    });
-    if (!components || components.length === 0) {
-        figma.notify("No design components were found in the JSON file.");
-        return;
+      }
+      return node;
     }
 
-    const parentFrame = figma.createFrame();
-    parentFrame.name = designData.design.designName || "Generated Design";
-    parentFrame.resize(1440, 1024); 
-    parentFrame.layoutMode = 'VERTICAL'; 
-    for (const component of processedComponents) {
-        const node = await createNode(component);
-        if (node) {
-            parentFrame.appendChild(node);
-        }
+    const finalDesign = await createNode(data, true);
+    if (finalDesign) {
+      figma.currentPage.appendChild(finalDesign);
+      figma.viewport.scrollAndZoomIntoView([finalDesign]);
+      figma.closePlugin("✅The design has been successfully created!");
+    } else {
+      figma.closePlugin("❌ Design creation failed. Check the console.");
     }
-
-    figma.currentPage.selection = [parentFrame];
-    figma.viewport.scrollAndZoomIntoView([parentFrame]);
-
-    figma.notify("The design has been successfully created!");
-    figma.closePlugin();
-}
-
+  }
+};
