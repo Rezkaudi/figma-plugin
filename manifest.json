@@ -1,0 +1,38 @@
+{
+  "name": "AI Design Generator",
+  "id": "ai-design-generator",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": [
+      "http://localhost:5000"
+    ],
+    "reasoning": "Fetch design data from local AI server"
+  },
+  "parameters": [
+    {
+      "key": "prompt",
+      "name": "Design Prompt",
+      "description": "Describe the design you want to generate",
+      "optional": true
+    }
+  ],
+  "parameterOnly": false,
+  "relaunchButtons": [
+    {
+      "command": "generate",
+      "name": "Generate Design",
+      "multipleSelection": false
+    },
+    {
+      "command": "monitor",
+      "name": "Monitor Mode",
+      "multipleSelection": false
+    }
+  ],
+  "capabilities": [],
+  "enableProposedApi": false,
+  "enablePrivatePluginApi": false
+}
