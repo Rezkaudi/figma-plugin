@@ -1,39 +1,18 @@
 {
-  "name": "AI Design Generator",
-  "id": "1571653994978539071",
-  "api": "1.0.0",
-  "main": "code.js",
-  "ui": "ui.html",
-  "editorType": ["figma"],
+  "name": "Task Creator Design Importer",
+  "id": "1572976306714112720",
   "documentAccess": "dynamic-page",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
   "networkAccess": {
     "allowedDomains": [
-      "http://localhost:5000"
+      "https://task-creator-api.onrender.com",
+      "http://localhost:5000",
+      "http://localhost:8080",
+      "https://api.anthropic.com"
     ],
-    "reasoning": "Fetch design data from local AI server"
-  },
-  "parameters": [
-    {
-      "key": "prompt",
-      "name": "Design Prompt",
-      "description": "Describe the design you want to generate",
-      "optional": true
-    }
-  ],
-  "parameterOnly": false,
-  "relaunchButtons": [
-    {
-      "command": "generate",
-      "name": "Generate Design",
-      "multipleSelection": false
-    },
-    {
-      "command": "monitor",
-      "name": "Monitor Mode",
-      "multipleSelection": false
-    }
-  ],
-  "capabilities": [],
-  "enableProposedApi": false,
-  "enablePrivatePluginApi": false
+    "reasoning": "Allows the plugin to communicate with the backend API for task creation, design generation, and version management."
+  }
 }

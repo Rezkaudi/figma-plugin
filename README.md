@@ -1,40 +1,229 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+# Task Creator Figma Plugin
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
+A Figma plugin for importing AI-generated designs, built with **Clean Architecture** principles.
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+## 🏗️ Architecture Overview
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+This plugin follows Clean Architecture (also known as Hexagonal Architecture / Ports and Adapters) to ensure:
+- **Separation of Concerns**: Each layer has a single responsibility
+- **Testability**: Business logic can be tested independently
+- **Flexibility**: Easy to swap implementations (e.g., different UI frameworks)
+- **Maintainability**: Changes in one layer don't affect others
 
-  https://nodejs.org/en/download/
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      PRESENTATION                           │
+│  ┌─────────────────┐  ┌──────────────────────────────────┐ │
+│  │   UI (HTML)     │  │   PluginMessageHandler           │ │
+│  │   - Generate    │  │   - Handles UI messages          │ │
+│  │   - Import      │  │   - Orchestrates use cases       │ │
+│  │   - Export      │  │                                  │ │
+│  └─────────────────┘  └──────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      APPLICATION                            │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                    USE CASES                            ││
+│  │  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐  ││
+│  │  │ImportDesign  │ │ImportAIDesign│ │ExportSelected  │  ││
+│  │  └──────────────┘ └──────────────┘ └────────────────┘  ││
+│  │  ┌──────────────┐                                       ││
+│  │  │ExportAll     │                                       ││
+│  │  └──────────────┘                                       ││
+│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                    SERVICES                             ││
+│  │  ┌──────────────────┐  ┌─────────────────┐              ││
+│  │  │DesignDataParser  │  │NodeCounter      │              ││
+│  │  └──────────────────┘  └─────────────────┘              ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        DOMAIN                               │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                     ENTITIES                            ││
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    ││
+│  │  │DesignNode    │ │Fill          │ │Effect        │    ││
+│  │  └──────────────┘ └──────────────┘ └──────────────┘    ││
+│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                   INTERFACES (Ports)                    ││
+│  │  ┌──────────────────┐ ┌─────────────┐ ┌───────────────┐││
+│  │  │INodeRepository   │ │IUIPort      │ │INotification  │││
+│  │  └──────────────────┘ └─────────────┘ └───────────────┘││
+│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                   VALUE OBJECTS                         ││
+│  │  ┌──────────────┐ ┌──────────────┐                     ││
+│  │  │Color         │ │Typography    │                     ││
+│  │  └──────────────┘ └──────────────┘                     ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE                           │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                 FIGMA ADAPTERS                          ││
+│  │  ┌──────────────────┐ ┌─────────────┐ ┌───────────────┐││
+│  │  │FigmaNodeRepository│ │FigmaUIPort │ │FigmaNotification││
+│  │  └──────────────────┘ └─────────────┘ └───────────────┘││
+│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                    CREATORS                             ││
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    ││
+│  │  │FrameCreator  │ │TextCreator   │ │ShapeCreator  │    ││
+│  │  └──────────────┘ └──────────────┘ └──────────────┘    ││
+│  └─────────────────────────────────────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                    MAPPERS                              ││
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    ││
+│  │  │FillMapper    │ │EffectMapper  │ │NodeTypeMapper│    ││
+│  │  └──────────────┘ └──────────────┘ └──────────────┘    ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
 
-Next, install TypeScript using the command:
+## 📁 Project Structure
 
-  npm install -g typescript
+```
+src/
+├── domain/                    # Core business logic (no dependencies)
+│   ├── entities/              # Business entities
+│   │   ├── design-node.ts     # Main design node entity
+│   │   ├── fill.ts            # Fill/paint entity
+│   │   ├── effect.ts          # Visual effects entity
+│   │   └── constraints.ts     # Positioning constraints
+│   ├── interfaces/            # Ports (abstractions)
+│   │   ├── node-repository.interface.ts
+│   │   ├── ui-port.interface.ts
+│   │   └── notification-port.interface.ts
+│   └── value-objects/         # Immutable value objects
+│       ├── color.ts
+│       └── typography.ts
+│
+├── application/               # Application business logic
+│   ├── use-cases/             # Application use cases
+│   │   ├── import-design.use-case.ts
+│   │   ├── import-ai-design.use-case.ts
+│   │   ├── export-selected.use-case.ts
+│   │   └── export-all.use-case.ts
+│   └── services/              # Application services
+│       ├── design-data-parser.service.ts
+│       └── node-counter.service.ts
+│
+├── infrastructure/            # External implementations
+│   ├── figma/                 # Figma-specific code
+│   │   ├── creators/          # Node creation strategies
+│   │   │   ├── base-node.creator.ts
+│   │   │   ├── frame-node.creator.ts
+│   │   │   ├── text-node.creator.ts
+│   │   │   ├── rectangle-node.creator.ts
+│   │   │   ├── shape-node.creator.ts
+│   │   │   └── component-node.creator.ts
+│   │   ├── exporters/
+│   │   │   └── node.exporter.ts
+│   │   ├── figma-node.repository.ts
+│   │   ├── figma-ui.port.ts
+│   │   ├── figma-notification.port.ts
+│   │   └── selection-change.handler.ts
+│   └── mappers/               # Data transformation
+│       ├── fill.mapper.ts
+│       ├── effect.mapper.ts
+│       └── node-type.mapper.ts
+│
+├── presentation/              # UI layer
+│   ├── ui/
+│   │   └── ui.html            # Plugin UI
+│   └── handlers/
+│       └── plugin-message.handler.ts
+│
+├── shared/                    # Shared utilities
+│   ├── types/
+│   │   └── node-types.ts      # Type definitions
+│   └── constants/
+│       └── plugin-config.ts
+│
+└── main.ts                    # Composition root
+```
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+## 🎯 Key Design Decisions
 
-  npm install --save-dev @figma/plugin-typings
+### 1. **Dependency Rule**
+Dependencies point inward. Domain knows nothing about Infrastructure.
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
+### 2. **Ports and Adapters**
+- **Ports** (Interfaces): Define contracts in the domain layer
+- **Adapters** (Implementations): Figma-specific implementations in infrastructure
 
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
+### 3. **Use Cases**
+Each use case has a single responsibility and returns a result object.
 
-For more information, visit https://www.typescriptlang.org/
+### 4. **Creators Pattern**
+Separate creator classes for each node type, following the Strategy pattern.
 
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
+### 5. **Mappers**
+Dedicated mappers for transforming between domain entities and Figma types.
 
-We recommend writing TypeScript code using Visual Studio code:
+## 🚀 Getting Started
 
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
+### Prerequisites
+- Node.js 18+
+- npm or yarn
 
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+### Installation
+```bash
+npm install
+```
+
+### Development
+```bash
+npm run build    # Build the plugin
+npm run watch    # Watch mode for development
+```
+
+### Project Setup
+1. Open Figma Desktop
+2. Go to Plugins → Development → Import plugin from manifest
+3. Select the `manifest.json` file
+
+## 📝 Usage
+
+### Generate Design
+1. Enter a design description
+2. Click "Generate Design"
+3. The AI-generated design will be imported
+
+### Import JSON
+1. Paste valid Figma JSON
+2. Click "Import Design"
+
+### Export Design
+1. Select layers in Figma
+2. Click "Export Selected" or "Export All"
+3. Copy the JSON output
+
+## 🧪 Testing
+
+The clean architecture makes testing straightforward:
+
+```typescript
+// Example: Testing a use case
+const mockRepository = new MockNodeRepository();
+const mockNotification = new MockNotificationPort();
+const parser = new DesignDataParser();
+
+const useCase = new ImportDesignUseCase(
+  mockRepository,
+  mockNotification,
+  parser
+);
+
+const result = await useCase.execute(testData);
+expect(result.success).toBe(true);
+```
+
+## 📄 License
+
+MIT
