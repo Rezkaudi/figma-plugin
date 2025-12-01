@@ -2,7 +2,7 @@ import { DesignNode } from '../../../domain/entities/design-node';
 import { BaseNodeCreator } from './base-node.creator';
 
 /**
- * Creator for Frame nodes
+ * Creator for Frame nodes with full property support
  */
 export class FrameNodeCreator extends BaseNodeCreator {
   /**
@@ -18,16 +18,15 @@ export class FrameNodeCreator extends BaseNodeCreator {
     const { width, height } = this.ensureMinDimensions(nodeData.width, nodeData.height);
     frameNode.resize(width, height);
 
+    // Apply fills and strokes
     this.applyFills(frameNode, nodeData.fills);
-    this.applyStrokes(frameNode, nodeData.strokes, nodeData.strokeWeight, nodeData.strokeAlign);
+    this.applyStrokes(frameNode, nodeData);
     this.applyCornerRadius(frameNode, nodeData);
 
-    // Apply clipsContent
-    if (typeof nodeData.clipsContent === 'boolean') {
-      frameNode.clipsContent = nodeData.clipsContent;
-    }
+    // Apply frame-specific properties
+    this.applyFrameProperties(frameNode, nodeData);
 
-    // Apply auto-layout properties
+    // Apply auto-layout properties BEFORE creating children
     this.applyAutoLayout(frameNode, nodeData);
 
     // Create children
@@ -71,48 +70,38 @@ export class FrameNodeCreator extends BaseNodeCreator {
     return groupFrame;
   }
 
-  private applyAutoLayout(frameNode: FrameNode, nodeData: DesignNode): void {
-    if (!nodeData.layoutMode || nodeData.layoutMode === 'NONE') {
-      return;
+  /**
+   * Create a section node
+   */
+  async createSection(
+    nodeData: DesignNode,
+    createChildFn: (child: DesignNode, parent: SectionNode) => Promise<void>
+  ): Promise<SectionNode> {
+    const sectionNode = figma.createSection();
+    sectionNode.name = nodeData.name || 'Section';
+
+    // Section resize
+    if (nodeData.width && nodeData.height) {
+      sectionNode.resizeWithoutConstraints(nodeData.width, nodeData.height);
     }
 
-    frameNode.layoutMode = nodeData.layoutMode;
+    // Apply fills
+    this.applyFills(sectionNode, nodeData.fills);
 
-    if (typeof nodeData.itemSpacing === 'number') {
-      frameNode.itemSpacing = nodeData.itemSpacing;
-    }
-    if (typeof nodeData.paddingTop === 'number') {
-      frameNode.paddingTop = nodeData.paddingTop;
-    }
-    if (typeof nodeData.paddingRight === 'number') {
-      frameNode.paddingRight = nodeData.paddingRight;
-    }
-    if (typeof nodeData.paddingBottom === 'number') {
-      frameNode.paddingBottom = nodeData.paddingBottom;
-    }
-    if (typeof nodeData.paddingLeft === 'number') {
-      frameNode.paddingLeft = nodeData.paddingLeft;
+    // Section-specific properties
+    if (typeof nodeData.sectionContentsHidden === 'boolean') {
+      sectionNode.sectionContentsHidden = nodeData.sectionContentsHidden;
     }
 
-    if (nodeData.primaryAxisAlignItems) {
-      frameNode.primaryAxisAlignItems = nodeData.primaryAxisAlignItems;
-    }
-    if (nodeData.counterAxisAlignItems && nodeData.counterAxisAlignItems !== 'BASELINE') {
-      frameNode.counterAxisAlignItems = nodeData.counterAxisAlignItems;
-    }
-    if (nodeData.primaryAxisSizingMode) {
-      frameNode.primaryAxisSizingMode = nodeData.primaryAxisSizingMode;
-    }
-    if (nodeData.counterAxisSizingMode) {
-      frameNode.counterAxisSizingMode = nodeData.counterAxisSizingMode;
+    // Create children
+    if (nodeData.children && Array.isArray(nodeData.children)) {
+      for (const child of nodeData.children) {
+        if (child && typeof child === 'object') {
+          await createChildFn(child, sectionNode);
+        }
+      }
     }
 
-    // Wrap and counter axis spacing (for newer Figma versions)
-    if (nodeData.layoutWrap && 'layoutWrap' in frameNode) {
-      (frameNode as any).layoutWrap = nodeData.layoutWrap;
-    }
-    if (typeof nodeData.counterAxisSpacing === 'number' && 'counterAxisSpacing' in frameNode) {
-      (frameNode as any).counterAxisSpacing = nodeData.counterAxisSpacing;
-    }
+    return sectionNode;
   }
 }

@@ -1,15 +1,16 @@
-import { Fill, GradientStop, isSolidFill } from '../../domain/entities/fill';
+import { Fill, GradientStop, isSolidFill, isGradientFill } from '../../domain/entities/fill';
 import { ColorFactory } from '../../domain/value-objects/color';
 
 /**
  * Mapper for converting between Fill entities and Figma Paint objects
+ * Handles: SOLID, GRADIENT_*, IMAGE, VIDEO
  */
 export class FillMapper {
   /**
    * Map Figma paints to Fill entities
    */
-  static toEntity(paints: readonly Paint[]): Fill[] | null {
-    if (!paints || paints.length === 0) return null;
+  static toEntity(paints: readonly Paint[] | typeof figma.mixed): Fill[] | null {
+    if (!paints || paints === figma.mixed || paints.length === 0) return null;
 
     const fills: Fill[] = [];
 
@@ -32,59 +33,164 @@ export class FillMapper {
     for (const fill of fills) {
       if (!fill || typeof fill !== 'object') continue;
 
-      if (isSolidFill(fill)) {
-        const solidPaint: SolidPaint = {
-          type: 'SOLID',
-          visible: fill.visible !== false,
-          opacity: FillMapper.normalizeOpacity(fill.opacity),
-          blendMode: (fill.blendMode as BlendMode) || 'NORMAL',
-          color: {
-            r: ColorFactory.normalize(fill.color.r || 0),
-            g: ColorFactory.normalize(fill.color.g || 0),
-            b: ColorFactory.normalize(fill.color.b || 0),
-          },
-        };
-        validFills.push(solidPaint);
+      const paint = FillMapper.mapFillToPaint(fill);
+      if (paint) {
+        validFills.push(paint);
       }
-      // Gradient support can be added here
     }
 
     return validFills;
   }
 
   private static mapPaintToFill(paint: Paint): Fill | null {
-    if (paint.type === 'SOLID') {
-      return {
-        type: 'SOLID',
-        visible: paint.visible !== false,
-        opacity: paint.opacity ?? 1,
-        blendMode: paint.blendMode || 'NORMAL',
-        color: ColorFactory.round({
-          r: paint.color.r,
-          g: paint.color.g,
-          b: paint.color.b,
-        }),
-      };
-    }
+    const baseFill: Partial<Fill> = {
+      type: paint.type as Fill['type'],
+      visible: paint.visible !== false ? undefined : false,
+      opacity: paint.opacity !== 1 ? paint.opacity : undefined,
+      blendMode: paint.blendMode !== 'NORMAL' ? paint.blendMode : undefined,
+    };
 
-    if (paint.type.startsWith('GRADIENT')) {
-      const gradientPaint = paint as GradientPaint;
-      return {
-        type: paint.type as Fill['type'],
-        visible: paint.visible !== false,
-        opacity: paint.opacity ?? 1,
-        blendMode: paint.blendMode || 'NORMAL',
-        gradientStops: FillMapper.mapGradientStops(gradientPaint.gradientStops),
-        gradientTransform: gradientPaint.gradientTransform as number[][],
-      };
-    }
+    switch (paint.type) {
+      case 'SOLID': {
+        const solidPaint = paint as SolidPaint;
+        return {
+          ...baseFill,
+          type: 'SOLID',
+          color: ColorFactory.round({
+            r: solidPaint.color.r,
+            g: solidPaint.color.g,
+            b: solidPaint.color.b,
+          }),
+        } as Fill;
+      }
 
-    // Skip image fills as they can't be easily exported to JSON
-    return null;
+      case 'GRADIENT_LINEAR':
+      case 'GRADIENT_RADIAL':
+      case 'GRADIENT_ANGULAR':
+      case 'GRADIENT_DIAMOND': {
+        const gradientPaint = paint as GradientPaint;
+        return {
+          ...baseFill,
+          type: paint.type,
+          gradientStops: FillMapper.mapGradientStops(gradientPaint.gradientStops),
+          gradientTransform: gradientPaint.gradientTransform.map(row => [...row]),
+        } as Fill;
+      }
+
+      case 'IMAGE': {
+        const imagePaint = paint as ImagePaint;
+        return {
+          ...baseFill,
+          type: 'IMAGE',
+          imageHash: imagePaint.imageHash,
+          scaleMode: imagePaint.scaleMode,
+          imageTransform: imagePaint.imageTransform ?
+            imagePaint.imageTransform.map(row => [...row]) : undefined,
+          scalingFactor: imagePaint.scalingFactor,
+          rotation: imagePaint.rotation !== 0 ? imagePaint.rotation : undefined,
+          filters: imagePaint.filters ? { ...imagePaint.filters } : undefined,
+        } as Fill;
+      }
+
+      case 'VIDEO': {
+        const videoPaint = paint as VideoPaint;
+        return {
+          ...baseFill,
+          type: 'VIDEO',
+          videoHash: videoPaint.videoHash,
+          scaleMode: videoPaint.scaleMode,
+        } as Fill;
+      }
+
+      default:
+        // Skip unsupported paint types
+        return null;
+    }
+  }
+
+  private static mapFillToPaint(fill: Fill): Paint | null {
+    const visible = fill.visible !== false;
+    const opacity = FillMapper.normalizeOpacity(fill.opacity);
+    const blendMode = (fill.blendMode as BlendMode) || 'NORMAL';
+
+    switch (fill.type) {
+      case 'SOLID': {
+        if (!fill.color) return null;
+        const solidPaint: SolidPaint = {
+          type: 'SOLID',
+          visible,
+          opacity,
+          blendMode,
+          color: {
+            r: ColorFactory.normalize(fill.color.r || 0),
+            g: ColorFactory.normalize(fill.color.g || 0),
+            b: ColorFactory.normalize(fill.color.b || 0),
+          },
+        };
+        return solidPaint;
+      }
+
+      case 'GRADIENT_LINEAR':
+      case 'GRADIENT_RADIAL':
+      case 'GRADIENT_ANGULAR':
+      case 'GRADIENT_DIAMOND': {
+        if (!fill.gradientStops || !fill.gradientTransform) return null;
+        const gradientPaint: GradientPaint = {
+          type: fill.type,
+          visible,
+          opacity,
+          blendMode,
+          gradientStops: fill.gradientStops.map(stop => ({
+            position: stop.position,
+            color: {
+              r: ColorFactory.normalize(stop.color.r),
+              g: ColorFactory.normalize(stop.color.g),
+              b: ColorFactory.normalize(stop.color.b),
+              a: stop.color.a ?? 1,
+            },
+          })),
+          gradientTransform: fill.gradientTransform as Transform,
+        };
+        return gradientPaint;
+      }
+
+      case 'IMAGE': {
+        if (!fill.imageHash) return null;
+        const imagePaint: ImagePaint = {
+          type: 'IMAGE',
+          visible,
+          opacity,
+          blendMode,
+          scaleMode: fill.scaleMode || 'FILL',
+          imageHash: fill.imageHash,
+          imageTransform: fill.imageTransform as Transform | undefined,
+          scalingFactor: fill.scalingFactor,
+          rotation: fill.rotation || 0,
+          filters: fill.filters,
+        };
+        return imagePaint;
+      }
+
+      case 'VIDEO': {
+        if (!fill.videoHash) return null;
+        const videoPaint: VideoPaint = {
+          type: 'VIDEO',
+          visible,
+          opacity,
+          blendMode,
+          scaleMode: fill.scaleMode || 'FILL',
+          videoHash: fill.videoHash,
+        };
+        return videoPaint;
+      }
+
+      default:
+        return null;
+    }
   }
 
   private static mapGradientStops(stops: readonly ColorStop[]): GradientStop[] {
-    return stops.map((stop) => ({
+    return stops.map(stop => ({
       position: stop.position,
       color: {
         r: Math.round(stop.color.r * 1000) / 1000,

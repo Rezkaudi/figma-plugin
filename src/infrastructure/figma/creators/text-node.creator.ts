@@ -3,7 +3,7 @@ import { DefaultFonts } from '../../../domain/value-objects/typography';
 import { BaseNodeCreator } from './base-node.creator';
 
 /**
- * Creator for Text nodes
+ * Creator for Text nodes with full text property support
  */
 export class TextNodeCreator extends BaseNodeCreator {
   /**
@@ -24,11 +24,14 @@ export class TextNodeCreator extends BaseNodeCreator {
       textNode.characters = '';
     }
 
-    // Apply text properties
+    // Apply all text properties
     this.applyTextProperties(textNode, nodeData);
 
     // Apply fills (text color)
     this.applyFills(textNode, nodeData.fills);
+
+    // Apply strokes if any
+    this.applyStrokes(textNode, nodeData);
 
     return textNode;
   }
@@ -101,6 +104,37 @@ export class TextNodeCreator extends BaseNodeCreator {
       textNode.paragraphSpacing = nodeData.paragraphSpacing;
     }
 
+    // List spacing
+    if (typeof nodeData.listSpacing === 'number') {
+      textNode.listSpacing = nodeData.listSpacing;
+    }
+
+    // Hanging punctuation
+    if (typeof nodeData.hangingPunctuation === 'boolean') {
+      textNode.hangingPunctuation = nodeData.hangingPunctuation;
+    }
+    if (typeof nodeData.hangingList === 'boolean') {
+      textNode.hangingList = nodeData.hangingList;
+    }
+
+    // Leading trim
+    if (nodeData.leadingTrim && nodeData.leadingTrim !== 'NONE') {
+      textNode.leadingTrim = nodeData.leadingTrim;
+    }
+
+    // Text truncation
+    if (nodeData.textTruncation && nodeData.textTruncation !== 'DISABLED') {
+      textNode.textTruncation = nodeData.textTruncation;
+    }
+    if (typeof nodeData.maxLines === 'number') {
+      textNode.maxLines = nodeData.maxLines;
+    }
+
+    // Hyperlink
+    if (nodeData.hyperlink) {
+      textNode.hyperlink = nodeData.hyperlink;
+    }
+
     // Text auto resize
     this.applyTextAutoResize(textNode, nodeData);
   }
@@ -123,6 +157,21 @@ export class TextNodeCreator extends BaseNodeCreator {
   }
 
   private applyTextAutoResize(textNode: TextNode, nodeData: DesignNode): void {
+    // If explicitly set in data, use it
+    if (nodeData.textAutoResize) {
+      textNode.textAutoResize = nodeData.textAutoResize;
+
+      // Resize based on mode
+      if (nodeData.textAutoResize === 'NONE' && nodeData.width && nodeData.height) {
+        textNode.resize(nodeData.width, nodeData.height);
+      } else if (nodeData.textAutoResize === 'HEIGHT' && nodeData.width) {
+        textNode.resize(nodeData.width, textNode.height || 1);
+      }
+      // WIDTH_AND_HEIGHT and TRUNCATE handle themselves
+      return;
+    }
+
+    // Fallback logic
     const isParentAutoLayout =
       nodeData.layoutAlign !== undefined || typeof nodeData.layoutGrow === 'number';
 

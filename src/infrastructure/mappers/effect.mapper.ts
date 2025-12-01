@@ -1,4 +1,4 @@
-import { Effect, isShadowEffect, isBlurEffect } from '../../domain/entities/effect';
+import { Effect } from '../../domain/entities/effect';
 
 /**
  * Mapper for converting between Effect entities and Figma Effect objects
@@ -13,7 +13,7 @@ export class EffectMapper {
     const exportedEffects: Effect[] = [];
 
     for (const effect of effects) {
-      const mapped = EffectMapper.mapEffect(effect as unknown as FigmaEffect);
+      const mapped = EffectMapper.mapToEntity(effect as unknown as FigmaEffect);
       if (mapped) {
         exportedEffects.push(mapped);
       }
@@ -33,7 +33,7 @@ export class EffectMapper {
     for (const effect of effects) {
       if (!effect || typeof effect !== 'object') continue;
 
-      const mapped = EffectMapper.mapToFigmaEffect(effect);
+      const mapped = EffectMapper.mapToFigma(effect);
       if (mapped) {
         validEffects.push(mapped);
       }
@@ -42,10 +42,10 @@ export class EffectMapper {
     return validEffects;
   }
 
-  private static mapEffect(effect: FigmaEffect): Effect | null {
+  private static mapToEntity(effect: FigmaEffect): Effect | null {
     if (effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') {
       const shadowEffect = effect as DropShadowEffect | InnerShadowEffect;
-      return {
+      const result: Effect = {
         type: effect.type,
         visible: effect.visible,
         radius: shadowEffect.radius,
@@ -62,6 +62,12 @@ export class EffectMapper {
         spread: shadowEffect.spread,
         blendMode: shadowEffect.blendMode,
       };
+
+      if (effect.type === 'DROP_SHADOW' && (shadowEffect as DropShadowEffect).showShadowBehindNode) {
+        return { ...result, showShadowBehindNode: true };
+      }
+
+      return result;
     }
 
     if (effect.type === 'LAYER_BLUR' || effect.type === 'BACKGROUND_BLUR') {
@@ -76,10 +82,10 @@ export class EffectMapper {
     return null;
   }
 
-  private static mapToFigmaEffect(effect: Effect): FigmaEffect | null {
+  private static mapToFigma(effect: Effect): FigmaEffect | null {
     switch (effect.type) {
-      case 'DROP_SHADOW':
-        return {
+      case 'DROP_SHADOW': {
+        const dropShadow: DropShadowEffect = {
           type: 'DROP_SHADOW',
           visible: effect.visible !== false,
           radius: effect.radius || 0,
@@ -87,7 +93,7 @@ export class EffectMapper {
             r: effect.color?.r || 0,
             g: effect.color?.g || 0,
             b: effect.color?.b || 0,
-            a: effect.color?.a || 0.25,
+            a: effect.color?.a ?? 0.25,
           },
           offset: {
             x: effect.offset?.x || 0,
@@ -95,10 +101,13 @@ export class EffectMapper {
           },
           spread: effect.spread || 0,
           blendMode: (effect.blendMode as BlendMode) || 'NORMAL',
-        } as DropShadowEffect;
+          showShadowBehindNode: effect.showShadowBehindNode || false,
+        };
+        return dropShadow;
+      }
 
-      case 'INNER_SHADOW':
-        return {
+      case 'INNER_SHADOW': {
+        const innerShadow: InnerShadowEffect = {
           type: 'INNER_SHADOW',
           visible: effect.visible !== false,
           radius: effect.radius || 0,
@@ -106,7 +115,7 @@ export class EffectMapper {
             r: effect.color?.r || 0,
             g: effect.color?.g || 0,
             b: effect.color?.b || 0,
-            a: effect.color?.a || 0.25,
+            a: effect.color?.a ?? 0.25,
           },
           offset: {
             x: effect.offset?.x || 0,
@@ -114,15 +123,26 @@ export class EffectMapper {
           },
           spread: effect.spread || 0,
           blendMode: (effect.blendMode as BlendMode) || 'NORMAL',
-        } as InnerShadowEffect;
+        };
+        return innerShadow;
+      }
 
-      case 'LAYER_BLUR':
-      case 'BACKGROUND_BLUR':
+      case 'LAYER_BLUR': {
+        // Create a proper BlurEffect with blurType
         return {
-          type: effect.type,
+          type: 'LAYER_BLUR',
           visible: effect.visible !== false,
           radius: effect.radius || 0,
         } as BlurEffect;
+      }
+
+      case 'BACKGROUND_BLUR': {
+        return {
+          type: 'BACKGROUND_BLUR',
+          visible: effect.visible !== false,
+          radius: effect.radius || 0,
+        } as BlurEffect;
+      }
 
       default:
         return null;
@@ -131,4 +151,4 @@ export class EffectMapper {
 }
 
 // Type alias for Figma's Effect type
-type FigmaEffect = Effect;
+type FigmaEffect = DropShadowEffect | InnerShadowEffect | BlurEffect;

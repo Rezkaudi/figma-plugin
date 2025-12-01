@@ -10,10 +10,26 @@ export type NodeType =
   | 'VECTOR'
   | 'INSTANCE'
   | 'COMPONENT'
+  | 'COMPONENT_SET'
   | 'LINE'
   | 'POLYGON'
   | 'STAR'
-  | 'BOOLEAN_OPERATION';
+  | 'BOOLEAN_OPERATION'
+  | 'SECTION'
+  | 'SLICE'
+  | 'CONNECTOR'
+  | 'STICKY'
+  | 'SHAPE_WITH_TEXT'
+  | 'STAMP'
+  | 'HIGHLIGHT'
+  | 'WASHI_TAPE'
+  | 'TABLE'
+  | 'TABLE_CELL'
+  | 'EMBED'
+  | 'LINK_UNFURL'
+  | 'MEDIA'
+  | 'CODE_BLOCK'
+  | 'WIDGET';
 
 /**
  * Fill types
@@ -24,7 +40,8 @@ export type FillType =
   | 'GRADIENT_RADIAL'
   | 'GRADIENT_ANGULAR'
   | 'GRADIENT_DIAMOND'
-  | 'IMAGE';
+  | 'IMAGE'
+  | 'VIDEO';
 
 /**
  * Effect types
@@ -52,6 +69,11 @@ export type CounterAxisAlignment = 'MIN' | 'CENTER' | 'MAX' | 'BASELINE';
  * Sizing modes
  */
 export type SizingMode = 'FIXED' | 'AUTO';
+
+/**
+ * Layout sizing for children
+ */
+export type LayoutSizing = 'FIXED' | 'HUG' | 'FILL';
 
 /**
  * Stroke alignment
@@ -116,3 +138,37 @@ export type LayoutPositioning = 'AUTO' | 'ABSOLUTE';
  * Layout align options
  */
 export type LayoutAlign = 'INHERIT' | 'STRETCH' | 'MIN' | 'CENTER' | 'MAX';
+
+/**
+ * Blend modes
+ */
+export type BlendModeType =
+  | 'PASS_THROUGH'
+  | 'NORMAL'
+  | 'DARKEN'
+  | 'MULTIPLY'
+  | 'LINEAR_BURN'
+  | 'COLOR_BURN'
+  | 'LIGHTEN'
+  | 'SCREEN'
+  | 'LINEAR_DODGE'
+  | 'COLOR_DODGE'
+  | 'OVERLAY'
+  | 'SOFT_LIGHT'
+  | 'HARD_LIGHT'
+  | 'DIFFERENCE'
+  | 'EXCLUSION'
+  | 'HUE'
+  | 'SATURATION'
+  | 'COLOR'
+  | 'LUMINOSITY';
+
+/**
+ * Mask types
+ */
+export type MaskType = 'ALPHA' | 'VECTOR' | 'LUMINANCE';
+
+/**
+ * Boolean operation types
+ */
+export type BooleanOperationType = 'UNION' | 'INTERSECT' | 'SUBTRACT' | 'EXCLUDE';

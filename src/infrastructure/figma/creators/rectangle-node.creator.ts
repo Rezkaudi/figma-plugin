@@ -16,7 +16,7 @@ export class RectangleNodeCreator extends BaseNodeCreator {
     rectNode.resize(width, height);
 
     this.applyFills(rectNode, nodeData.fills);
-    this.applyStrokes(rectNode, nodeData.strokes, nodeData.strokeWeight, nodeData.strokeAlign);
+    this.applyStrokes(rectNode, nodeData);
     this.applyCornerRadius(rectNode, nodeData);
 
     return rectNode;
@@ -36,8 +36,14 @@ export class RectangleNodeCreator extends BaseNodeCreator {
     rectFrame.resize(width, height);
 
     this.applyFills(rectFrame, nodeData.fills);
-    this.applyStrokes(rectFrame, nodeData.strokes, nodeData.strokeWeight, nodeData.strokeAlign);
+    this.applyStrokes(rectFrame, nodeData);
     this.applyCornerRadius(rectFrame, nodeData);
+
+    // Apply auto-layout if specified
+    this.applyAutoLayout(rectFrame, nodeData);
+
+    // Apply frame-specific properties
+    this.applyFrameProperties(rectFrame, nodeData);
 
     for (const child of nodeData.children!) {
       if (child && typeof child === 'object') {

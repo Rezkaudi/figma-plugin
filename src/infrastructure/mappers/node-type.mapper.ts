@@ -15,9 +15,24 @@ export class NodeTypeMapper {
     POLYGON: 'POLYGON',
     STAR: 'STAR',
     COMPONENT: 'COMPONENT',
-    COMPONENT_SET: 'FRAME',
+    COMPONENT_SET: 'COMPONENT_SET',
     INSTANCE: 'INSTANCE',
     BOOLEAN_OPERATION: 'BOOLEAN_OPERATION',
+    SECTION: 'SECTION',
+    SLICE: 'SLICE',
+    CONNECTOR: 'CONNECTOR',
+    STICKY: 'STICKY',
+    SHAPE_WITH_TEXT: 'SHAPE_WITH_TEXT',
+    STAMP: 'STAMP',
+    HIGHLIGHT: 'HIGHLIGHT',
+    WASHI_TAPE: 'WASHI_TAPE',
+    TABLE: 'TABLE',
+    TABLE_CELL: 'TABLE_CELL',
+    EMBED: 'EMBED',
+    LINK_UNFURL: 'LINK_UNFURL',
+    MEDIA: 'MEDIA',
+    CODE_BLOCK: 'CODE_BLOCK',
+    WIDGET: 'WIDGET',
   };
 
   /**
@@ -39,13 +54,29 @@ export class NodeTypeMapper {
    * Check if type is frame-like
    */
   static isFrameLike(type: NodeType): boolean {
-    return ['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE'].includes(type);
+    return ['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE', 'SECTION', 'COMPONENT_SET'].includes(type);
   }
 
   /**
    * Check if type supports children
    */
   static supportsChildren(type: NodeType): boolean {
-    return ['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE', 'BOOLEAN_OPERATION'].includes(type);
+    return [
+      'FRAME',
+      'GROUP',
+      'COMPONENT',
+      'INSTANCE',
+      'BOOLEAN_OPERATION',
+      'SECTION',
+      'COMPONENT_SET',
+      'TABLE',
+    ].includes(type);
+  }
+
+  /**
+   * Check if type is a shape
+   */
+  static isShape(type: NodeType): boolean {
+    return ['RECTANGLE', 'ELLIPSE', 'POLYGON', 'STAR', 'LINE', 'VECTOR'].includes(type);
   }
 }

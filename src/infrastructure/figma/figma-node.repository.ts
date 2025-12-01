@@ -13,6 +13,7 @@ import { NodeExporter } from './exporters/node.exporter';
 
 /**
  * Figma implementation of the Node Repository
+ * Handles creation and export of all node types
  */
 export class FigmaNodeRepository extends BaseNodeCreator implements INodeRepository {
   private readonly frameCreator = new FrameNodeCreator();
@@ -35,7 +36,7 @@ export class FigmaNodeRepository extends BaseNodeCreator implements INodeReposit
       if (typeof nodeData.x === 'number') node.x = nodeData.x;
       if (typeof nodeData.y === 'number') node.y = nodeData.y;
 
-      // Apply common properties
+      // Apply common properties (opacity, blend mode, effects, constraints, etc.)
       this.applyCommonProperties(node, nodeData);
 
       // Append to parent or page
@@ -131,6 +132,9 @@ export class FigmaNodeRepository extends BaseNodeCreator implements INodeReposit
       case 'GROUP':
         return this.frameCreator.createGroup(nodeData, createChildBound);
 
+      case 'SECTION':
+        return this.frameCreator.createSection(nodeData, createChildBound as any);
+
       case 'RECTANGLE':
         // If rectangle has children, create as frame
         if (hasChildren(nodeData)) {
@@ -154,17 +158,28 @@ export class FigmaNodeRepository extends BaseNodeCreator implements INodeReposit
         return this.shapeCreator.createLine(nodeData);
 
       case 'VECTOR':
-        return this.shapeCreator.createVectorPlaceholder(nodeData);
+        return this.shapeCreator.createVector(nodeData);
 
       case 'COMPONENT':
         return this.componentCreator.create(nodeData, createChildBound as any);
 
-      case 'INSTANCE':
-        // Instances require existing components, create as frame
+      case 'COMPONENT_SET':
+        // Component sets are like frames with variant children
         return this.frameCreator.create(nodeData, createChildBound);
+
+      case 'INSTANCE':
+        // Instances require existing components, create as frame with all properties
+        return this.frameCreator.create(nodeData, createChildBound);
+
+      case 'BOOLEAN_OPERATION':
+        return this.componentCreator.createBooleanOperation(nodeData, createChildBound);
+
+      case 'SLICE':
+        return this.createSlice(nodeData);
 
       default:
         // Fallback to frame for unknown types
+        console.warn(`Unknown node type: ${nodeType}, creating as frame`);
         if (hasChildren(nodeData)) {
           return this.frameCreator.create(nodeData, createChildBound);
         }
@@ -172,7 +187,10 @@ export class FigmaNodeRepository extends BaseNodeCreator implements INodeReposit
     }
   }
 
-  private async createChild(childData: DesignNode, parent: FrameNode | ComponentNode): Promise<void> {
+  private async createChild(
+    childData: DesignNode,
+    parent: FrameNode | ComponentNode | SectionNode
+  ): Promise<void> {
     const childNode = await this.createNodeByType(childData);
 
     if (childNode) {
@@ -185,5 +203,15 @@ export class FigmaNodeRepository extends BaseNodeCreator implements INodeReposit
 
       parent.appendChild(childNode);
     }
+  }
+
+  private createSlice(nodeData: DesignNode): SliceNode {
+    const sliceNode = figma.createSlice();
+    sliceNode.name = nodeData.name || 'Slice';
+
+    const { width, height } = this.ensureMinDimensions(nodeData.width, nodeData.height, 100);
+    sliceNode.resize(width, height);
+
+    return sliceNode;
   }
 }

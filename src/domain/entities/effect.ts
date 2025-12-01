@@ -20,6 +20,7 @@ export interface Effect {
   readonly offset?: Offset;
   readonly spread?: number;
   readonly blendMode?: string;
+  readonly showShadowBehindNode?: boolean;
 }
 
 /**
@@ -34,4 +35,18 @@ export function isShadowEffect(effect: Effect): effect is Effect & { offset: Off
  */
 export function isBlurEffect(effect: Effect): boolean {
   return effect.type === 'LAYER_BLUR' || effect.type === 'BACKGROUND_BLUR';
+}
+
+/**
+ * Type guard for drop shadow
+ */
+export function isDropShadow(effect: Effect): boolean {
+  return effect.type === 'DROP_SHADOW';
+}
+
+/**
+ * Type guard for inner shadow
+ */
+export function isInnerShadow(effect: Effect): boolean {
+  return effect.type === 'INNER_SHADOW';
 }
